@@ -1,45 +1,239 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowRight, Bot, Check, ChevronDown, ChevronRight, CircleHelp, Code2, Command, Copy, FileCode2, FilePlus2, Folder, FolderOpen, GitBranch, Globe, Hammer, History, LoaderCircle, Menu, MessageSquare, MoreHorizontal, PanelLeft, Plus, Search, Send, Settings2, ShieldCheck, Sparkles, SquareTerminal, WandSparkles, X } from "lucide-react";
+import {
+  Activity, ArrowDown, ArrowUp, Check, ChevronDown, ChevronRight, CircleHelp,
+  Command, FileCode2, FileText, Folder, GitBranch, History, LoaderCircle,
+  Menu, MessageSquare, MoreHorizontal, PanelLeftClose, Paperclip, Plus,
+  Search, Settings2, Sparkles, SquareTerminal, X
+} from "lucide-react";
 
-type WorkspaceFile={path:string;content:string};
-type ChatMessage={role:"user"|"assistant";content:string};
-const initial:WorkspaceFile[]=[
- {path:"README.md",content:"# Welcome to Side Hustle Code\n\nAn OpenCode-inspired AI coding workspace.\n\nAsk the agent to explain code, propose fixes, and draft implementation plans.\n"},
- {path:"src/app.ts",content:"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n"},
- {path:"package.json",content:"{\n  \"name\": \"your-project\",\n  \"private\": true\n}\n"}
+type WorkspaceFile = { path: string; content: string };
+type ChatMessage = { role: "user" | "assistant"; content: string };
+type Session = { id: string; title: string; updated: string; messages: ChatMessage[] };
+
+const initialFiles: WorkspaceFile[] = [
+  { path: "README.md", content: "# Welcome to Side Hustle Code\n\nAn OpenCode-inspired AI coding workspace.\n\nAsk the agent to explain code, propose fixes, and draft implementation plans.\n" },
+  { path: "src/app.ts", content: "export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n" },
+  { path: "package.json", content: "{\n  \"name\": \"your-project\",\n  \"private\": true\n}\n" }
 ];
-export default function App(){
- const [files,setFiles]=useState(initial),[selectedPath,setSelectedPath]=useState("src/app.ts"),[drafts,setDrafts]=useState<Record<string,string>>({});
- const [messages,setMessages]=useState<ChatMessage[]>([{role:"assistant",content:"Hey! I'm your coding partner. I can explain code, help plan changes, and draft implementations. Connect an AI provider in deployment settings to enable live responses."}]);
- const [input,setInput]=useState(""),[sessionId,setSessionId]=useState(""),[provider,setProvider]=useState(false),[model,setModel]=useState("gpt-4o-mini"),[sending,setSending]=useState(false),[saving,setSaving]=useState(false);
- const [tab,setTab]=useState<"code"|"preview"|"terminal">("code"),[sideOpen,setSideOpen]=useState(true),[chatOpen,setChatOpen]=useState(true),[leftTab,setLeftTab]=useState<"files"|"search"|"history">("files"),[search,setSearch]=useState(""),[toast,setToast]=useState("");
- const file=files.find(f=>f.path===selectedPath),content=file?(drafts[selectedPath]??file.content):"",lines=useMemo(()=>content.split("\n"),[content]);
- useEffect(()=>{fetch("/api/config").then(r=>r.json()).then(d=>{setProvider(Boolean(d.providerConfigured));setModel(d.model||"gpt-4o-mini")}).catch(()=>{});fetch("/api/files").then(r=>r.json()).then(d=>{if(d.files?.length)setFiles(d.files)}).catch(()=>{})},[]);
- function notify(s:string){setToast(s);window.setTimeout(()=>setToast(""),2400)}
- async function save(){if(!file)return;setSaving(true);const value=drafts[selectedPath]??file.content;try{const r=await fetch("/api/files",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({path:selectedPath,content:value})});if(!r.ok)throw Error();setFiles(fs=>fs.map(f=>f.path===selectedPath?{...f,content:value}:f));setDrafts(d=>{const n={...d};delete n[selectedPath];return n});notify("Saved to workspace")}catch{setFiles(fs=>fs.map(f=>f.path===selectedPath?{...f,content:value}:f));setDrafts(d=>{const n={...d};delete n[selectedPath];return n});notify("Saved in this session")}finally{setSaving(false)}}
- async function send(preset?:string){const message=(preset??input).trim();if(!message||sending)return;setInput("");setMessages(ms=>[...ms,{role:"user",content:message}]);setSending(true);try{const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message,sessionId,fileContext:file?("Selected file: "+selectedPath+"\n"+content):""})});const d=await r.json();if(!r.ok)throw Error(d.details||d.error||"Request failed");if(d.sessionId)setSessionId(d.sessionId);setMessages(ms=>[...ms,{role:"assistant",content:d.answer}])}catch(e){setMessages(ms=>[...ms,{role:"assistant",content:e instanceof Error?e.message:"Request failed. Check server configuration."}])}finally{setSending(false)}}
- async function newFile(){const p=prompt("New file path (for example src/utils.ts)");if(!p?.trim())return;if(files.some(f=>f.path===p.trim()))return notify("That file already exists");const f={path:p.trim(),content:""};setFiles(fs=>[...fs,f]);setSelectedPath(f.path);try{await fetch("/api/files",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(f)})}catch{}notify("File created")}
- async function copy(){try{await navigator.clipboard.writeText(content);notify("Copied file content")}catch{notify("Clipboard access was blocked")}}
- const filtered=files.filter(f=>f.path.toLowerCase().includes(search.toLowerCase())),folders=[...new Set(filtered.map(f=>f.path.includes("/")?f.path.split("/")[0]:""))].filter(Boolean);
- return <div className="app-shell">
- <header className="topbar"><div className="brand-area"><button className="icon-btn mobile-toggle" onClick={()=>setSideOpen(!sideOpen)} aria-label="Toggle sidebar"><Menu size={17}/></button><div className="brand-mark"><Code2 size={19}/></div><div className="brand-name">sidehustle<span>.</span><small>CODE</small></div><div className="top-separator"/><button className="project-switch"><Folder size={14}/> side-hustle <ChevronDown size={13}/></button></div><div className="top-center"><span className="status-dot"/><span>Workspace ready</span><span className="status-divider">/</span><span className="muted">Sample workspace</span></div><div className="top-actions"><button className="icon-btn" aria-label="Activity"><Activity size={16}/></button><button className="icon-btn" aria-label="Settings" onClick={()=>notify("Set AI_API_KEY, AI_BASE_URL and AI_MODEL in Render environment settings")}><Settings2 size={16}/></button><div className="avatar">R</div></div></header>
- <div className="workspace">
- {sideOpen&&<aside className="left-sidebar"><div className="sidebar-tabs"><button className={leftTab==="files"?"sidebar-tab active":"sidebar-tab"} onClick={()=>setLeftTab("files")}><FolderOpen size={15}/> Explorer</button><button className={leftTab==="search"?"sidebar-tab active":"sidebar-tab"} onClick={()=>setLeftTab("search")}><Search size={15}/> Search</button><button className={leftTab==="history"?"sidebar-tab active":"sidebar-tab"} onClick={()=>setLeftTab("history")}><History size={15}/></button></div>
- {leftTab==="files"&&<><div className="section-heading"><span>EXPLORER</span><button className="mini-icon" aria-label="New file" onClick={newFile}><FilePlus2 size={14}/></button></div><div className="tree-root"><ChevronDown size={13}/><FolderOpen size={14} className="folder-icon"/> SIDE-HUSTLE</div>{folders.map(f=><div className="tree-folder" key={f}><ChevronDown size={12}/><Folder size={14} className="folder-icon"/><span>{f}</span></div>)}<div className="file-tree">{filtered.map(f=><button key={f.path} className={selectedPath===f.path?"file-item selected":"file-item"} onClick={()=>setSelectedPath(f.path)}><span className={f.path.endsWith(".md")?"file-glyph md":f.path.endsWith(".json")?"file-glyph json":"file-glyph ts"}>{f.path.endsWith(".md")?"M":f.path.endsWith(".json")?"{}":"TS"}</span><span>{f.path.split("/").pop()}</span>{drafts[f.path]!==undefined&&<span className="unsaved-dot"/>}</button>)}</div><div className="sidebar-bottom"><div className="section-heading"><span>ENVIRONMENT</span><ChevronDown size={13}/></div><div className="env-row"><span className={provider?"green-pulse":"idle-dot"}/>{provider?"AI provider connected":"AI provider not set"}</div><div className="env-row muted"><GitBranch size={13}/> main</div></div></>}
- {leftTab==="search"&&<div className="search-panel"><label>Search files</label><div className="search-input"><Search size={14}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Find a file..."/></div><p className="hint">{filtered.length} matching files</p>{filtered.map(f=><button key={f.path} className="search-result" onClick={()=>{setSelectedPath(f.path);setLeftTab("files")}}>{f.path}</button>)}</div>}
- {leftTab==="history"&&<div className="history-panel"><History size={18}/><p>Session history</p><span>Conversation history is available for the current in-memory session only.</span></div>}</aside>}
- <main className="main-column"><div className="breadcrumb-bar"><div className="breadcrumbs"><FileCode2 size={14}/><span>{selectedPath.split("/").slice(0,-1).join("/")||"root"}</span><ChevronRight size={13}/><strong>{selectedPath.split("/").pop()}</strong><span className="dirty-mark">{drafts[selectedPath]!==undefined?"●":""}</span></div><div className="editor-actions"><button className="icon-btn" title="Save file" onClick={save}><Check size={14}/></button><button className="icon-btn" title="Copy file" onClick={copy}><Copy size={14}/></button><button className="icon-btn" title="More options" onClick={()=>notify("More editor actions coming soon")}><MoreHorizontal size={16}/></button></div></div>
- <div className="editor-tabs"><button className="editor-file-tab"><span className="file-glyph ts">{selectedPath.endsWith(".md")?"M":selectedPath.endsWith(".json")?"{}":"TS"}</span>{selectedPath.split("/").pop()}{drafts[selectedPath]!==undefined&&<span className="unsaved-dot"/>}<X size={13}/></button><div className="editor-tab-spacer"/><button className={tab==="code"?"mode-tab active":"mode-tab"} onClick={()=>setTab("code")}><Code2 size={13}/> Editor</button><button className={tab==="preview"?"mode-tab active":"mode-tab"} onClick={()=>setTab("preview")}><Globe size={13}/> Preview</button><button className={tab==="terminal"?"mode-tab active":"mode-tab"} onClick={()=>setTab("terminal")}><SquareTerminal size={13}/> Terminal</button></div>
- {tab==="code"&&<div className="code-editor"><div className="line-numbers">{lines.map((_,i)=><div key={i}>{i+1}</div>)}</div><textarea aria-label="Code editor" spellCheck={false} value={content} onChange={e=>setDrafts(d=>({...d,[selectedPath]:e.target.value}))}/></div>}
- {tab==="preview"&&<div className="preview-pane"><div className="preview-window"><div className="preview-toolbar"><span/><span/><span/><p>Preview</p></div><div className="preview-content"><div className="preview-logo"><Code2 size={22}/></div><h1>Build something<br/><span>remarkable.</span></h1><p>Your AI-powered development workspace starts here.</p><button onClick={()=>setTab("code")}>Explore source <ArrowRight size={14}/></button></div></div></div>}
- {tab==="terminal"&&<div className="terminal-pane"><div className="terminal-head"><SquareTerminal size={14}/> Terminal <span className="terminal-badge">SIMULATED</span></div><div className="terminal-output"><p><span className="term-prompt">➜</span> <span className="term-dir">side-hustle</span> <span className="term-muted">git:(main)</span></p><p className="term-muted">Remote shell execution is disabled in this demo.</p><p className="term-muted">This workspace edits sample files only.</p><p><span className="term-prompt">➜</span> <span className="term-dir">side-hustle</span> <span className="cursor"/></p></div></div>}
- <div className="bottom-bar"><div className="bottom-left"><span><GitBranch size={12}/> main</span><span><Check size={12}/> Ready</span><span>UTF-8</span></div><div className="bottom-right"><span>TypeScript</span><span>Ln {lines.length}, Col 1</span><span>Spaces: 2</span></div></div></main>
- {chatOpen&&<aside className="right-panel"><div className="chat-header"><div className="chat-heading"><div className="agent-mark"><Sparkles size={15}/></div><div><strong>AI Agent</strong><small><span className={provider?"online-dot":"idle-dot"}/>{provider?"Connected":"Setup required"}</small></div></div><div className="chat-head-actions"><button className="icon-btn" aria-label="New chat" onClick={()=>{setMessages([{role:"assistant",content:"New session. What are we building today?"}]);setSessionId("")}}><Plus size={15}/></button><button className="icon-btn" aria-label="Collapse chat" onClick={()=>setChatOpen(false)}><PanelLeft size={15}/></button></div></div>
- <div className="agent-selector"><Bot size={15}/><span>Build Agent</span><span className="model-chip">{model}</span><ChevronDown size={13}/></div><div className="chat-scroll"><div className="chat-date">TODAY <span/></div>{messages.map((m,i)=><div className={m.role==="user"?"message-row user-row":"message-row"} key={i}>{m.role==="assistant"&&<div className="message-avatar"><Sparkles size={13}/></div>}<div className={m.role==="user"?"message-bubble user-bubble":"message-bubble"}>{m.content.split("\n").map((line,j)=><p key={j}>{line||" "}</p>)}</div></div>)}{sending&&<div className="message-row"><div className="message-avatar"><Sparkles size={13}/></div><div className="thinking"><span/><span/><span/> Thinking</div></div>}
- {!provider&&<div className="setup-card"><div className="setup-card-icon"><ShieldCheck size={16}/></div><div><strong>Connect your AI provider</strong><p>Add an API key in Render to start chatting with your codebase.</p><button onClick={()=>notify("Render → Side-Hustle Code → Environment: set AI_API_KEY, AI_BASE_URL and AI_MODEL")}>View setup guide <ArrowRight size={13}/></button></div></div>}
- <div className="suggestion-heading">QUICK ACTIONS</div><div className="quick-actions"><button onClick={()=>send("Explain the selected file and identify any issues.")}><WandSparkles size={13}/> Explain this code</button><button onClick={()=>send("Create a concise implementation plan for improving this project.")}><Hammer size={13}/> Create a plan</button><button onClick={()=>send("Suggest tests for the selected file and provide example test code.")}><ShieldCheck size={13}/> Suggest tests</button></div></div>
- <div className="chat-composer-wrap"><div className="composer-context"><FileCode2 size={12}/><span>{selectedPath}</span><button onClick={()=>notify("Selected file context is attached to each prompt")}><CircleHelp size={13}/></button></div><div className="chat-composer"><textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void send()}}} placeholder="Ask anything about your code..." rows={3}/><div className="composer-footer"><div className="composer-tools"><button aria-label="Add context" onClick={()=>notify("Selected file is already included")}><Plus size={15}/></button><button aria-label="Command" onClick={()=>setInput("/") }><Command size={14}/></button><span><span className={provider?"green-pulse":"idle-dot"}/> {provider?"Ready":"No provider"}</span></div><button className="send-btn" disabled={!input.trim()||sending} aria-label="Send message" onClick={()=>void send()}>{sending?<LoaderCircle className="spin" size={15}/>:<Send size={15}/>}</button></div></div><div className="composer-hint">AI can make mistakes. Review changes before use.</div></div></aside>}
- {!chatOpen&&<button className="reopen-chat" onClick={()=>setChatOpen(true)}><MessageSquare size={15}/> Open AI Agent</button>}
- </div>{toast&&<div className="toast"><Check size={14}/>{toast}</div>}
- </div>
+
+const starterPrompts = [
+  { title: "Understand this codebase", detail: "Map the project and explain how it works", prompt: "Explore the available workspace files and explain how this project is structured." },
+  { title: "Find a bug", detail: "Inspect code and suggest a fix", prompt: "Inspect the available workspace files for likely bugs and explain how to fix them." },
+  { title: "Plan a feature", detail: "Break an idea into implementation steps", prompt: "Help me plan a new feature. First ask any essential questions, then outline implementation steps." },
+  { title: "Write tests", detail: "Identify important test cases", prompt: "Suggest meaningful tests for the currently available workspace files." }
+];
+
+export default function App() {
+  const [files, setFiles] = useState<WorkspaceFile[]>(initialFiles);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [activeSession, setActiveSession] = useState("new");
+  const [input, setInput] = useState("");
+  const [sessionId, setSessionId] = useState("");
+  const [provider, setProvider] = useState(false);
+  const [model, setModel] = useState("gpt-4o-mini");
+  const [sending, setSending] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [showFiles, setShowFiles] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [toast, setToast] = useState("");
+  const [mode, setMode] = useState<"build" | "plan">("build");
+  const [selectedPath, setSelectedPath] = useState("src/app.ts");
+
+  const file = files.find(f => f.path === selectedPath);
+  const filteredSessions = sessions.filter(s => s.title.toLowerCase().includes(search.toLowerCase()));
+  const lineCount = useMemo(() => (file?.content ?? "").split("\n").length, [file]);
+
+  useEffect(() => {
+    fetch("/api/config").then(r => r.json()).then(d => {
+      setProvider(Boolean(d.providerConfigured));
+      setModel(d.model || "gpt-4o-mini");
+    }).catch(() => {});
+    fetch("/api/files").then(r => r.json()).then(d => {
+      if (d.files?.length) setFiles(d.files);
+    }).catch(() => {});
+  }, []);
+
+  function notify(message: string) {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 2600);
+  }
+
+  function startNewSession() {
+    setActiveSession("new");
+    setMessages([]);
+    setSessionId("");
+    setInput("");
+    setShowFiles(false);
+  }
+
+  function selectSession(session: Session) {
+    setActiveSession(session.id);
+    setMessages(session.messages);
+    setShowFiles(false);
+  }
+
+  async function send(preset?: string) {
+    const message = (preset ?? input).trim();
+    if (!message || sending) return;
+    setInput("");
+    const nextMessages: ChatMessage[] = [...messages, { role: "user", content: message }];
+    setMessages(nextMessages);
+    setSending(true);
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: mode === "plan" ? "[Plan mode: do not make changes. Analyze and propose a plan.]\n" + message : message,
+          sessionId,
+          fileContext: file ? "Selected workspace file: " + selectedPath + "\n" + file.content : ""
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.details || data.error || "The request failed.");
+      if (data.sessionId) setSessionId(data.sessionId);
+      const finalMessages: ChatMessage[] = [...nextMessages, { role: "assistant", content: data.answer }];
+      setMessages(finalMessages);
+      const id = activeSession === "new" ? String(Date.now()) : activeSession;
+      setActiveSession(id);
+      setSessions(previous => {
+        const title = message.length > 42 ? message.slice(0, 42).trim() + "…" : message;
+        const session = { id, title, updated: "Just now", messages: finalMessages };
+        return [session, ...previous.filter(s => s.id !== id)];
+      });
+    } catch (error) {
+      setMessages(current => [...current, {
+        role: "assistant",
+        content: error instanceof Error ? error.message : "Request failed. Check the AI provider configuration."
+      }]);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function saveFile() {
+    if (!file) return;
+    try {
+      const response = await fetch("/api/files", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: file.path, content: file.content })
+      });
+      if (!response.ok) throw new Error();
+      notify("File saved");
+    } catch {
+      notify("Could not save file to the workspace");
+    }
+  }
+
+  async function createFile() {
+    const path = window.prompt("File path, e.g. src/utils.ts");
+    if (!path?.trim()) return;
+    if (files.some(f => f.path === path.trim())) return notify("That file already exists");
+    const created = { path: path.trim(), content: "" };
+    setFiles(current => [...current, created]);
+    setSelectedPath(created.path);
+    setShowFiles(true);
+    try {
+      await fetch("/api/files", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(created)
+      });
+    } catch { /* local UI remains available */ }
+  }
+
+  return (
+    <div className="oc-app">
+      <header className="oc-topbar">
+        <div className="oc-top-left">
+          <button className="oc-icon-button sidebar-toggle" aria-label="Toggle sidebar" onClick={() => setSidebarOpen(v => !v)}><PanelLeftClose size={16} /></button>
+          <div className="oc-brand-mark"><span /></div>
+          <span className="oc-brand-name">opencode</span>
+          <span className="oc-brand-divider" />
+          <button className="oc-project-switch" onClick={() => setShowFiles(v => !v)}><Folder size={14} /><span>side-hustle</span><ChevronDown size={13} /></button>
+        </div>
+        <div className="oc-top-center"><span className="oc-branch"><GitBranch size={13} /> main</span><span className="oc-top-separator">/</span><span className="oc-muted">workspace</span></div>
+        <div className="oc-top-right">
+          <span className={provider ? "oc-provider-dot connected" : "oc-provider-dot"} />
+          <span className="oc-provider-label">{provider ? "Connected" : "Not connected"}</span>
+          <button className="oc-icon-button" aria-label="Settings" onClick={() => setShowSettings(v => !v)}><Settings2 size={16} /></button>
+          <button className="oc-icon-button" aria-label="More options" onClick={() => notify("More actions are not available in this prototype")}><MoreHorizontal size={17} /></button>
+        </div>
+      </header>
+
+      <div className="oc-layout">
+        {sidebarOpen && <aside className="oc-sidebar">
+          <button className="oc-new-session" onClick={startNewSession}><Plus size={15} /><span>New session</span><kbd>⌘ N</kbd></button>
+          <button className="oc-sidebar-action" onClick={() => setSearchOpen(v => !v)}><Search size={14} /><span>Search sessions</span><kbd>⌘ K</kbd></button>
+          {searchOpen && <div className="oc-session-search"><Search size={13} /><input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter sessions…" /><button onClick={() => { setSearch(""); setSearchOpen(false); }} aria-label="Close search"><X size={13} /></button></div>}
+          <div className="oc-sidebar-section"><span>SESSIONS</span><button aria-label="New session" onClick={startNewSession}><Plus size={14} /></button></div>
+          <div className="oc-session-list">
+            {filteredSessions.length === 0 && <div className="oc-empty-sessions">{search ? "No matching sessions" : "Your recent sessions will appear here."}</div>}
+            {filteredSessions.map(session => <button key={session.id} className={"oc-session-item " + (activeSession === session.id ? "active" : "")} onClick={() => selectSession(session)}>
+              <MessageSquare size={14} /><span>{session.title}</span><small>{session.updated}</small>
+            </button>)}
+          </div>
+          <div className="oc-sidebar-bottom">
+            <button className="oc-sidebar-action" onClick={() => setShowFiles(v => !v)}><FileCode2 size={14} /><span>Workspace files</span><ChevronRight size={13} className={showFiles ? "rotated" : ""} /></button>
+            {showFiles && <div className="oc-files-list">
+              {files.map(f => <button key={f.path} className={selectedPath === f.path ? "active" : ""} onClick={() => setSelectedPath(f.path)}><FileText size={13} /><span>{f.path}</span></button>)}
+              <button className="oc-add-file" onClick={createFile}><Plus size={13} /> New file</button>
+              {file && <div className="oc-file-editor"><div className="oc-file-editor-head"><span>{selectedPath}</span><button onClick={saveFile} aria-label="Save file"><Check size={13} /></button></div><textarea value={file.content} onChange={e => setFiles(current => current.map(f => f.path === selectedPath ? { ...f, content: e.target.value } : f))} spellCheck={false} /><div className="oc-file-status">{lineCount} lines · Workspace file</div></div>}
+            </div>}
+            <div className="oc-account-row"><div className="oc-avatar">R</div><div className="oc-account-copy"><strong>Local workspace</strong><span>{provider ? model : "AI provider setup needed"}</span></div><button className="oc-icon-button" aria-label="Account options" onClick={() => setShowSettings(v => !v)}><MoreHorizontal size={16} /></button></div>
+          </div>
+        </aside>}
+
+        <main className="oc-main">
+          <div className="oc-session-header">
+            <div className="oc-session-title"><span>{activeSession === "new" ? "New session" : (sessions.find(s => s.id === activeSession)?.title || "Session")}</span><ChevronDown size={14} /></div>
+            <div className="oc-session-tools"><span className="oc-session-status"><span /> {sending ? "Working" : "Ready"}</span><button className="oc-icon-button" title="Session history" onClick={() => notify("Sessions are kept in this browser session only")}><History size={15} /></button><button className="oc-icon-button" title="Terminal" onClick={() => notify("A real terminal is not enabled in this hosted prototype")}><SquareTerminal size={15} /></button><button className="oc-icon-button" title="Session options" onClick={() => notify("Session options coming soon")}><MoreHorizontal size={16} /></button></div>
+          </div>
+
+          {messages.length === 0 ? <div className="oc-welcome-scroll">
+            <section className="oc-welcome">
+              <div className="oc-welcome-symbol"><span /></div>
+              <h1>What are we building?</h1>
+              <p>Start a conversation with your coding agent.</p>
+              {!provider && <div className="oc-setup-notice"><div className="oc-setup-icon"><CircleHelp size={16} /></div><div><strong>Connect a model to get started</strong><span>Set AI_API_KEY and AI_BASE_URL in your Render service environment settings.</span></div><button onClick={() => setShowSettings(true)}>Setup <ChevronRight size={13} /></button></div>}
+              <div className="oc-starter-grid">{starterPrompts.map(item => <button key={item.title} className="oc-starter-card" onClick={() => void send(item.prompt)}><span>{item.title}</span><small>{item.detail}</small><ArrowUp size={14} /></button>)}</div>
+            </section>
+          </div> : <div className="oc-conversation" key={activeSession}>
+            {messages.map((message, index) => <article className={"oc-message " + message.role} key={index}>
+              {message.role === "assistant" ? <div className="oc-message-mark"><span /></div> : <div className="oc-user-mark">R</div>}
+              <div className="oc-message-content">
+                <div className="oc-message-meta"><strong>{message.role === "assistant" ? "Build" : "You"}</strong>{message.role === "assistant" && <span className="oc-meta-model">{model}</span>}</div>
+                <div className="oc-message-text">{message.content.split("\n").map((line, i) => <p key={i}>{line || "\u00a0"}</p>)}</div>
+                {message.role === "assistant" && <div className="oc-message-actions"><button onClick={() => { void navigator.clipboard?.writeText(message.content); notify("Response copied"); }}><FileText size={12} /> Copy</button><button onClick={() => void send("Continue from your last response.")}><ArrowDown size={12} /> Continue</button></div>}
+              </div>
+            </article>)}
+            {sending && <article className="oc-message assistant"><div className="oc-message-mark"><span /></div><div className="oc-message-content"><div className="oc-message-meta"><strong>Build</strong><span className="oc-meta-model">Working</span></div><div className="oc-thinking"><LoaderCircle size={14} /> Thinking through your request…</div></div></article>}
+          </div>}
+
+          <div className="oc-composer-area">
+            <div className="oc-composer">
+              <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }} placeholder="Ask anything… (use @ to add context)" rows={3} aria-label="Message the coding agent" />
+              <div className="oc-composer-toolbar">
+                <div className="oc-composer-left">
+                  <button className="oc-tool-button" title="Attach context" onClick={() => setShowFiles(v => !v)}><Paperclip size={15} /></button>
+                  <button className="oc-mode-switch" onClick={() => setMode(v => v === "build" ? "plan" : "build")}><span className={mode === "plan" ? "oc-mode-dot plan" : "oc-mode-dot"} />{mode === "build" ? "Build" : "Plan"}<ChevronDown size={12} /></button>
+                  <span className="oc-composer-divider" />
+                  <button className="oc-model-switch" onClick={() => setShowSettings(true)}>{model}<ChevronDown size={12} /></button>
+                </div>
+                <div className="oc-composer-right"><span className="oc-key-hint"><kbd>↵</kbd> send</span><button className="oc-send-button" disabled={!input.trim() || sending} onClick={() => void send()} aria-label="Send message">{sending ? <LoaderCircle size={15} className="oc-spin" /> : <ArrowUp size={16} />}</button></div>
+              </div>
+            </div>
+            <div className="oc-composer-caption"><span><Command size={11} /> K for commands</span><span>AI can make mistakes. Review important changes.</span></div>
+          </div>
+        </main>
+      </div>
+
+      {showSettings && <div className="oc-modal-backdrop" onClick={() => setShowSettings(false)}><section className="oc-settings-modal" onClick={e => e.stopPropagation()}><div className="oc-modal-header"><div><strong>Model configuration</strong><span>Connect an AI provider for live responses.</span></div><button className="oc-icon-button" onClick={() => setShowSettings(false)} aria-label="Close settings"><X size={16} /></button></div><div className="oc-settings-body"><div className="oc-setting-row"><div><strong>Provider status</strong><span>{provider ? "An AI provider is configured on the server." : "No AI provider key was detected by the server."}</span></div><span className={provider ? "oc-status-pill good" : "oc-status-pill"}>{provider ? "Connected" : "Not configured"}</span></div><div className="oc-setting-help"><strong>Configure on Render</strong><p>Open your service's Environment settings and set <code>AI_API_KEY</code>, <code>AI_BASE_URL</code>, and <code>AI_MODEL</code>. Never put API keys in this chat or in frontend code.</p><a href="https://dashboard.render.com/web/srv-dbah33jbc2fs73bcfe3g" target="_blank" rel="noreferrer">Open Render dashboard <ChevronRight size={13} /></a></div></div><div className="oc-modal-footer"><button className="oc-secondary-button" onClick={() => setShowSettings(false)}>Close</button><button className="oc-primary-button" onClick={() => { setShowSettings(false); notify("Refresh after configuring the provider on Render"); }}>Done</button></div></section></div>}
+      {toast && <div className="oc-toast"><Check size={14} />{toast}</div>}
+    </div>
+  );
 }
