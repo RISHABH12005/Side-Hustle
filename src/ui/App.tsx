@@ -37,6 +37,7 @@ export default function App() {
   const [showFiles, setShowFiles] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [mode, setMode] = useState<"build" | "plan">("build");
   const [selectedPath, setSelectedPath] = useState("src/app.ts");
@@ -167,7 +168,8 @@ export default function App() {
       <div className="oc-layout">
         {sidebarOpen && <aside className="oc-sidebar">
           <button className="oc-new-session" onClick={startNewSession}><Plus size={15} /><span>New session</span><kbd>⌘ N</kbd></button>
-          <button className="oc-sidebar-action" onClick={() => setSearch(v => v ? "" : " ")}><Search size={14} /><span>Search sessions</span><kbd>⌘ K</kbd></button>
+          <button className="oc-sidebar-action" onClick={() => setSearchOpen(v => !v)}><Search size={14} /><span>Search sessions</span><kbd>⌘ K</kbd></button>
+          {searchOpen && <div className="oc-session-search"><Search size={13} /><input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter sessions…" /><button onClick={() => { setSearch(""); setSearchOpen(false); }} aria-label="Close search"><X size={13} /></button></div>}
           <div className="oc-sidebar-section"><span>SESSIONS</span><button aria-label="New session" onClick={startNewSession}><Plus size={14} /></button></div>
           <div className="oc-session-list">
             {filteredSessions.length === 0 && <div className="oc-empty-sessions">{search ? "No matching sessions" : "Your recent sessions will appear here."}</div>}
