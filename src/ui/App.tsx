@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, ChevronDown, Command, CornerDownLeft, FileText, GitBranch, LoaderCircle, MessageSquare, Plus, Search, Settings2, Terminal, X } from "lucide-react";
+import { ArrowUp, ChevronDown, Command, CornerDownLeft, FileText, GitBranch, LoaderCircle, MessageSquare, Search, Settings2, Terminal, X } from "lucide-react";
 
 type Message = { role: "user" | "assistant"; content: string };
 const commands = [
