@@ -56,7 +56,6 @@ export default function App() {
   }
   const filteredCommands = commands.filter(c => (c[0] + " " + c[1]).toLowerCase().includes(query.toLowerCase()));
   return <div className="terminal-app">
-    <header className="term-titlebar"><span className="term-app-icon">◈</span><span>OpenCode</span><span className="term-title-spacer" /><button title="New session" onClick={newSession}><Plus size={13} /></button><button title="Commands (Ctrl K)" onClick={() => { setPalette("commands"); setQuery(""); }}><Command size={13} /></button></header>
     <main className="term-main">
       {messages.length === 0 ? <section className="term-welcome"><div className="term-logo">opencode</div><div className="term-subtitle">The open source AI coding agent</div>
         <form className="term-welcome-input" onSubmit={e => { e.preventDefault(); void send(); }}><textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); } }} placeholder="Ask anything... (use @ to mention files)" rows={2} /><div className="term-input-bottom"><span><span className="term-agent-dot" /> {mode} <span className="term-muted">·</span> {model}</span><button type="submit" disabled={!input.trim() || sending} aria-label="Send"><ArrowUp size={14} /></button></div></form>
